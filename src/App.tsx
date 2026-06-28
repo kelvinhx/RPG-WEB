@@ -20,7 +20,9 @@ import {
   Award, 
   CheckCircle, 
   Feather, 
-  Layers 
+  Layers,
+  Map,
+  ShieldAlert
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
@@ -51,6 +53,50 @@ const welcomeMessage: Message = {
   status: 'read'
 };
 
+// Map Nodes definition for the interactive world tab
+const MAP_NODES = [
+  {
+    name: "Plano do Caos",
+    faction: "Neutro (Caos)",
+    miasma: "95%",
+    description: "Uma brecha dimensional flutuante fora do tempo e espaço, onde a realidade se deforma.",
+    x: "50%",
+    y: "50%"
+  },
+  {
+    name: "Santuário Lunar Abandonado",
+    faction: "Guarda da Lua",
+    miasma: "15%",
+    description: "Templo secular de alabastro sob o céu cósmico. Esconde arquivos rúnicos e fontes de gravidade lunar.",
+    x: "20%",
+    y: "25%"
+  },
+  {
+    name: "Forte Solar (Al-Kharid)",
+    faction: "Império Solar",
+    miasma: "5%",
+    description: "Baluarte militar construído sobre jazidas de bronze alquímico. Usam energia térmica para queimar o miasma.",
+    x: "80%",
+    y: "30%"
+  },
+  {
+    name: "Necro-Pântano",
+    faction: "Seita da Podridão",
+    miasma: "70%",
+    description: "Pântano biomecânico tomado pela podridão escarlate. Hospeda feras deformadas e fungos parasitas.",
+    x: "35%",
+    y: "75%"
+  },
+  {
+    name: "Fronteira das Almas",
+    faction: "Neutro",
+    miasma: "40%",
+    description: "Canyon desértico varrido por ventos etéreos onde mercadores e fugitivos negociam sob fogueiras de mana.",
+    x: "65%",
+    y: "65%"
+  }
+];
+
 export default function App() {
   // Load state from local storage or fallback to default
   const [gameState, setGameState] = useState<GameState>(() => {
@@ -65,8 +111,12 @@ export default function App() {
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [activeMobileTab, setActiveMobileTab] = useState<'chat' | 'ficha' | 'bag' | 'butterfly'>('chat');
+  const [activeMobileTab, setActiveMobileTab] = useState<'chat' | 'ficha' | 'bag' | 'mundo' | 'diario'>('chat');
+  const [activeTab, setActiveTab] = useState<'ficha' | 'bag' | 'mundo' | 'diario'>('ficha');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [selectedMapNode, setSelectedMapNode] = useState<string | null>(null);
+  const [expandedItem, setExpandedItem] = useState<string | null>(null);
+  const [castingSkillEffect, setCastingSkillEffect] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -133,7 +183,13 @@ export default function App() {
         })
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonErr) {
+        throw new Error(`Resposta do servidor não pôde ser interpretada como JSON. (Status: ${response.status})`);
+      }
 
       if (response.ok && data.gameState) {
         setGameState(data.gameState);
@@ -164,11 +220,12 @@ export default function App() {
           status: 'read'
         }]);
       }
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Erro na comunicação com o servidor:", err);
       setMessages(prev => [...prev, {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: `⚠️ *Mestre da Realidade:* Falha ao conectar-se à mente do Mestre. Certifique-se de que sua conexão está estável.`,
+        content: `⚠️ *Mestre da Realidade:* Falha ao conectar-se à mente do Mestre. Certifique-se de que sua conexão está estável.\n\n_Erro técnico: ${err.message || err}_`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         status: 'read'
       }]);
@@ -782,39 +839,59 @@ export default function App() {
         */}
         <nav 
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}
-          className="lg:hidden bg-[#111b21] border-t border-[#222e35] grid grid-cols-4 pt-2 text-center select-none shrink-0"
+          className="lg:hidden bg-[#111b21] border-t border-[#222e35] grid grid-cols-5 pt-2 text-center select-none shrink-0"
         >
           <button 
             id="tab-chat"
             onClick={() => setActiveMobileTab('chat')}
-            className={`flex flex-col items-center justify-center gap-1 cursor-pointer ${activeMobileTab === 'chat' ? 'text-emerald-400' : 'text-slate-400'}`}
+            className={`flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${activeMobileTab === 'chat' ? 'text-emerald-400' : 'text-slate-400'}`}
           >
-            <Sparkles className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Conversas</span>
+            <Sparkles className="w-4 h-4" />
+            <span className="text-[9px] font-medium leading-none">Chat</span>
           </button>
           <button 
             id="tab-ficha"
-            onClick={() => setActiveMobileTab('ficha')}
-            className={`flex flex-col items-center justify-center gap-1 cursor-pointer ${activeMobileTab === 'ficha' ? 'text-emerald-400' : 'text-slate-400'}`}
+            onClick={() => {
+              setActiveMobileTab('ficha');
+              setActiveTab('ficha');
+            }}
+            className={`flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${activeMobileTab === 'ficha' ? 'text-emerald-400' : 'text-slate-400'}`}
           >
-            <User className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Ficha</span>
+            <User className="w-4 h-4" />
+            <span className="text-[9px] font-medium leading-none">Ficha</span>
           </button>
           <button 
             id="tab-bag"
-            onClick={() => setActiveMobileTab('bag')}
-            className={`flex flex-col items-center justify-center gap-1 cursor-pointer ${activeMobileTab === 'bag' ? 'text-emerald-400' : 'text-slate-400'}`}
+            onClick={() => {
+              setActiveMobileTab('bag');
+              setActiveTab('bag');
+            }}
+            className={`flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${activeMobileTab === 'bag' ? 'text-emerald-400' : 'text-slate-400'}`}
           >
-            <Layers className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Grimório</span>
+            <Layers className="w-4 h-4" />
+            <span className="text-[9px] font-medium leading-none">Bolsa</span>
           </button>
           <button 
-            id="tab-butterfly"
-            onClick={() => setActiveMobileTab('butterfly')}
-            className={`flex flex-col items-center justify-center gap-1 cursor-pointer ${activeMobileTab === 'butterfly' ? 'text-emerald-400' : 'text-slate-400'}`}
+            id="tab-mundo"
+            onClick={() => {
+              setActiveMobileTab('mundo');
+              setActiveTab('mundo');
+            }}
+            className={`flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${activeMobileTab === 'mundo' ? 'text-emerald-400' : 'text-slate-400'}`}
           >
-            <TrendingUp className="w-5 h-5" />
-            <span className="text-[10px] font-medium">Diário</span>
+            <Map className="w-4 h-4" />
+            <span className="text-[9px] font-medium leading-none">Mundo</span>
+          </button>
+          <button 
+            id="tab-diario"
+            onClick={() => {
+              setActiveMobileTab('diario');
+              setActiveTab('diario');
+            }}
+            className={`flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors ${activeMobileTab === 'diario' ? 'text-emerald-400' : 'text-slate-400'}`}
+          >
+            <Award className="w-4 h-4" />
+            <span className="text-[9px] font-medium leading-none">Diário</span>
           </button>
         </nav>
       </section>
@@ -827,336 +904,698 @@ export default function App() {
         - Efeito Borboleta Diário
       */}
       <aside 
-        className={`w-full lg:w-96 shrink-0 border-l border-[#222e35] bg-[#111b21] h-full overflow-y-auto flex-col ${
+        className={`w-full lg:w-96 shrink-0 border-l border-[#222e35] bg-[#111b21] h-full flex flex-col ${
           activeMobileTab !== 'chat' ? 'fixed inset-0 z-40 flex lg:relative lg:flex' : 'hidden lg:flex'
         }`}
       >
         {/* Mobile Header overlay */}
-        <div className="lg:hidden flex items-center justify-between p-4 bg-[#202c33] border-b border-[#222e35]">
+        <div className="lg:hidden flex items-center justify-between p-3.5 bg-[#202c33] border-b border-[#222e35] shrink-0">
           <div className="flex items-center gap-2">
             <User className="w-5 h-5 text-indigo-400" />
             <h2 className="font-display font-bold text-white uppercase text-xs tracking-wider">
-              {activeMobileTab === 'ficha' ? 'Ficha de Status' : activeMobileTab === 'bag' ? 'Equipamento & Magia' : 'Efeito Borboleta & Diário'}
+              {activeTab === 'ficha' ? 'Painel de Status' : activeTab === 'bag' ? 'Equipamentos & Bolsa' : activeTab === 'mundo' ? 'Mapa Astral-Solaria' : 'Destino & Diário'}
             </h2>
           </div>
           <button 
             id="btn-close-mobile-tab"
             onClick={() => setActiveMobileTab('chat')}
-            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold"
+            className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl text-xs font-bold cursor-pointer transition-all"
           >
             Voltar ao Chat
           </button>
         </div>
 
-        {/* Detailed Character status section */}
-        {(activeMobileTab === 'ficha' || activeMobileTab === 'chat') && (
-          <div className="p-4 border-b border-[#222e35]">
-            <div className="flex items-center gap-1.5 mb-3">
-              <User className="w-4 h-4 text-emerald-400" />
-              <h3 className="font-display font-bold text-xs uppercase tracking-wider text-white">Identidade do Herói</h3>
-            </div>
-            
-            {gameState.character ? (
-              <div className="space-y-4">
-                {/* Character Name card */}
-                <div className="bg-[#1f2c34] p-3 rounded-2xl border border-slate-700/20">
-                  <div className="text-xs text-slate-400">Nome do Personagem:</div>
-                  <div className="text-base font-bold font-display text-indigo-300 mt-0.5">{gameState.character.name}</div>
-                  
-                  <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-700/30 text-xs">
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase">Raça</span>
-                      <strong className="text-white font-medium">{gameState.character.race}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px] uppercase">Subclasse / Classe</span>
-                      <strong className="text-amber-300 font-medium truncate block">
-                        {gameState.character.subclass || gameState.character.className}
-                      </strong>
-                    </div>
-                  </div>
+        {/* Tab switcher buttons bar */}
+        <div className="bg-[#1f2c34] border-b border-[#222e35] p-2 flex items-center gap-1 shrink-0">
+          <button 
+            onClick={() => setActiveTab('ficha')}
+            className={`flex-1 py-2 text-center rounded-xl text-xs font-semibold cursor-pointer flex flex-col items-center gap-1 transition-all ${
+              activeTab === 'ficha' 
+                ? 'bg-indigo-600/25 border border-indigo-500/35 text-indigo-200 shadow-inner font-bold' 
+                : 'text-slate-400 hover:bg-[#2a3942]/50 hover:text-slate-200'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            <span>Ficha</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('bag')}
+            className={`flex-1 py-2 text-center rounded-xl text-xs font-semibold cursor-pointer flex flex-col items-center gap-1 transition-all ${
+              activeTab === 'bag' 
+                ? 'bg-emerald-600/25 border border-emerald-500/35 text-emerald-200 shadow-inner font-bold' 
+                : 'text-slate-400 hover:bg-[#2a3942]/50 hover:text-slate-200'
+            }`}
+          >
+            <Layers className="w-4 h-4" />
+            <span>Bolsa</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('mundo')}
+            className={`flex-1 py-2 text-center rounded-xl text-xs font-semibold cursor-pointer flex flex-col items-center gap-1 transition-all ${
+              activeTab === 'mundo' 
+                ? 'bg-amber-600/25 border border-amber-500/35 text-amber-200 shadow-inner font-bold' 
+                : 'text-slate-400 hover:bg-[#2a3942]/50 hover:text-slate-200'
+            }`}
+          >
+            <Map className="w-4 h-4" />
+            <span>Mundo</span>
+          </button>
+          <button 
+            onClick={() => setActiveTab('diario')}
+            className={`flex-1 py-2 text-center rounded-xl text-xs font-semibold cursor-pointer flex flex-col items-center gap-1 transition-all ${
+              activeTab === 'diario' 
+                ? 'bg-rose-600/25 border border-rose-500/35 text-rose-200 shadow-inner font-bold' 
+                : 'text-slate-400 hover:bg-[#2a3942]/50 hover:text-slate-200'
+            }`}
+          >
+            <Award className="w-4 h-4" />
+            <span>Diário</span>
+          </button>
+        </div>
+
+        {/* Tab panel scroll container */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#0c1317]">
+          <AnimatePresence mode="wait">
+            {activeTab === 'ficha' && (
+              <motion.div
+                key="tab-ficha-content"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center gap-1.5 mb-2">
+                  <User className="w-4 h-4 text-indigo-400" />
+                  <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-300">Identidade do Herói</h3>
                 </div>
 
-                {/* HP / MP progress bars */}
-                <div className="space-y-2 font-mono">
-                  {/* HP Bar */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs font-bold">
-                      <div className="flex items-center gap-1 text-rose-400">
-                        <Heart className="w-3.5 h-3.5 fill-rose-500/20" />
-                        <span>VITALIDADE (HP)</span>
+                {gameState.character ? (
+                  <div className="space-y-4">
+                    {/* Identity Hero Card */}
+                    <div className="bg-gradient-to-br from-[#1b252c] to-[#111a20] p-4 rounded-2xl border border-slate-700/20 relative overflow-hidden shadow-md">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl" />
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-600 to-indigo-800 text-white flex items-center justify-center text-sm font-bold shadow ring-2 ring-indigo-500/30">
+                          {gameState.character.name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="text-base font-bold font-display text-indigo-300 leading-tight">
+                            {gameState.character.name}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">
+                            {gameState.character.race} • Lvl {gameState.character.level}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-rose-400">{gameState.character.hp} / {gameState.character.maxHp}</span>
+
+                      <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-700/30 text-xs">
+                        <div>
+                          <span className="text-slate-500 block text-[9px] uppercase tracking-wide">Classe</span>
+                          <strong className="text-slate-200 font-medium truncate block">{gameState.character.className}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[9px] uppercase tracking-wide">Alinhamento / Subclasse</span>
+                          <strong className="text-amber-400 font-medium truncate block">
+                            {gameState.character.subclass || "Criando Linha..."}
+                          </strong>
+                        </div>
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-rose-950/20">
-                      <div 
-                        className="h-full bg-gradient-to-r from-rose-500 to-red-600 transition-all duration-300" 
-                        style={{ width: `${Math.max(0, Math.min(100, (gameState.character.hp / gameState.character.maxHp) * 100))}%` }}
-                      />
+
+                    {/* Vitals Progress with Limit Break Indicator */}
+                    <div className="space-y-3 bg-[#111b21] border border-[#222e35] p-3 rounded-2xl">
+                      {/* HP */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs font-bold font-mono">
+                          <div className="flex items-center gap-1.5 text-rose-400">
+                            <Heart className="w-3.5 h-3.5 fill-rose-500/10" />
+                            <span>VITALIDADE (HP)</span>
+                          </div>
+                          <span className="text-rose-400">{gameState.character.hp} / {gameState.character.maxHp}</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-rose-950/20">
+                          <div 
+                            className="h-full bg-gradient-to-r from-rose-500 to-red-600 transition-all duration-300" 
+                            style={{ width: `${Math.max(0, Math.min(100, (gameState.character.hp / gameState.character.maxHp) * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Transe Astral Alert (Limit Break triggered under 30% HP) */}
+                      {gameState.character.hp <= gameState.character.maxHp * 0.3 && (
+                        <div className="p-1 px-2.5 bg-red-950/40 border border-red-500/20 rounded-xl text-center text-[10px] text-red-400 font-mono font-bold animate-pulse">
+                          💥 TRANSE ASTRAL ATIVO! (+40% Dano Rúnico)
+                        </div>
+                      )}
+
+                      {/* MP */}
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs font-bold font-mono">
+                          <div className="flex items-center gap-1.5 text-indigo-400">
+                            <Feather className="w-3.5 h-3.5" />
+                            <span>ENERGIA MÁGICA (MP)</span>
+                          </div>
+                          <span className="text-indigo-400">{gameState.character.mp} / {gameState.character.maxMp}</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-indigo-950/20">
+                          <div 
+                            className="h-full bg-gradient-to-r from-indigo-500 to-sky-600 transition-all duration-300" 
+                            style={{ width: `${Math.max(0, Math.min(100, (gameState.character.mp / gameState.character.maxMp) * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* XP Bar */}
+                      <div className="space-y-1 pt-1.5 border-t border-[#222e35]">
+                        <div className="flex justify-between text-[10px] font-bold text-slate-500 font-mono">
+                          <span>EXPERIÊNCIA</span>
+                          <span>{gameState.character.xp} / {gameState.character.nextLevelXp} XP</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-amber-500 transition-all duration-300" 
+                            style={{ width: `${Math.max(0, Math.min(100, (gameState.character.xp / gameState.character.nextLevelXp) * 100))}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Attributes Block */}
+                    <div className="bg-[#111b21] border border-[#222e35] p-3.5 rounded-2xl">
+                      <div className="text-[10px] text-slate-400 font-mono tracking-wider uppercase font-bold mb-2">Ficha de Atributos</div>
+                      <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                        <div className="flex items-center justify-between p-2 bg-slate-800/25 rounded-xl border border-slate-700/10">
+                          <span className="text-slate-400">🗡️ FOR:</span>
+                          <strong className="text-rose-300 text-sm">{gameState.character.attributes.for}</strong>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-slate-800/25 rounded-xl border border-slate-700/10">
+                          <span className="text-slate-400">⚡ AGI:</span>
+                          <strong className="text-amber-300 text-sm">{gameState.character.attributes.agi}</strong>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-slate-800/25 rounded-xl border border-slate-700/10">
+                          <span className="text-slate-400">🔮 INT:</span>
+                          <strong className="text-indigo-300 text-sm">{gameState.character.attributes.int}</strong>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-slate-800/25 rounded-xl border border-slate-700/10">
+                          <span className="text-slate-400">🛡️ VIT:</span>
+                          <strong className="text-emerald-300 text-sm">{gameState.character.attributes.vit}</strong>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-slate-800/25 rounded-xl border border-slate-700/10">
+                          <span className="text-slate-400">👁️ PER:</span>
+                          <strong className="text-sky-300 text-sm">{gameState.character.attributes.per}</strong>
+                        </div>
+                        <div className="flex items-center justify-between p-2 bg-slate-800/25 rounded-xl border border-slate-700/10">
+                          <span className="text-slate-400">🧘 WIL:</span>
+                          <strong className="text-purple-300 text-sm">{gameState.character.attributes.wil}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Calculated Combat Metrics */}
+                    <div className="bg-[#111b21] border border-[#222e35] p-3.5 rounded-2xl">
+                      <div className="text-[10px] text-slate-400 font-mono tracking-wider uppercase font-bold mb-2">Estatísticas de Combate</div>
+                      <div className="space-y-1.5 text-xs font-mono">
+                        <div className="flex justify-between items-center p-1.5 bg-slate-800/15 rounded-lg text-[11px]">
+                          <span className="text-slate-400 flex items-center gap-1">🗡️ Poder de Ataque Físico</span>
+                          <strong className="text-rose-400">{(gameState.character.attributes.for * 1.5 + gameState.character.attributes.agi * 0.5).toFixed(0)}</strong>
+                        </div>
+                        <div className="flex justify-between items-center p-1.5 bg-slate-800/15 rounded-lg text-[11px]">
+                          <span className="text-slate-400 flex items-center gap-1">🔮 Dano Mágico Rúnico</span>
+                          <strong className="text-indigo-400">{(gameState.character.attributes.int * 2.0 + gameState.character.attributes.wil * 0.6).toFixed(0)}</strong>
+                        </div>
+                        <div className="flex justify-between items-center p-1.5 bg-slate-800/15 rounded-lg text-[11px]">
+                          <span className="text-slate-400 flex items-center gap-1">🛡️ Defesa Absoluta</span>
+                          <strong className="text-emerald-400">{(gameState.character.attributes.vit * 10)}</strong>
+                        </div>
+                        <div className="flex justify-between items-center p-1.5 bg-slate-800/15 rounded-lg text-[11px]">
+                          <span className="text-slate-400 flex items-center gap-1">⚡ Evasão Corporal</span>
+                          <strong className="text-amber-400">{(gameState.character.attributes.agi * 0.8).toFixed(1)}%</strong>
+                        </div>
+                        <div className="flex justify-between items-center p-1.5 bg-slate-800/15 rounded-lg text-[11px]">
+                          <span className="text-slate-400 flex items-center gap-1">🎯 Taxa de Crítico</span>
+                          <strong className="text-sky-400">{(gameState.character.attributes.agi * 1.0 + gameState.character.attributes.per * 0.4).toFixed(1)}%</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Titles and Scars list */}
+                    {((gameState.character.titles && gameState.character.titles.length > 0) || 
+                      (gameState.character.cicatrizes && gameState.character.cicatrizes.length > 0)) && (
+                      <div className="space-y-3 bg-[#111b21] border border-[#222e35] p-3.5 rounded-2xl">
+                        {gameState.character.titles && gameState.character.titles.length > 0 && (
+                          <div>
+                            <span className="text-[10px] text-amber-400 font-mono tracking-wider uppercase font-semibold block mb-1">👑 Títulos Cósmicos</span>
+                            <div className="flex flex-wrap gap-1">
+                              {gameState.character.titles.map(title => (
+                                <span key={title} className="bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] font-semibold py-0.5 px-2 rounded-full">
+                                  {title}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {gameState.character.cicatrizes && gameState.character.cicatrizes.length > 0 && (
+                          <div>
+                            <span className="text-[10px] text-rose-400 font-mono tracking-wider uppercase font-semibold block mb-1">🩸 Cicatrizes de Combate</span>
+                            <div className="flex flex-wrap gap-1">
+                              {gameState.character.cicatrizes.map(scar => (
+                                <span key={scar} className="bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[10px] py-0.5 px-2 rounded-full">
+                                  {scar}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center bg-[#1f2c34]/50 rounded-2xl border border-slate-700/25">
+                    <p className="text-xs text-slate-400 leading-relaxed mb-4">
+                      Inicie a criação de seu herói enviando qualquer mensagem no Chat principal para desbloquear sua ficha de status interativa!
+                    </p>
+                    <div className="w-8 h-8 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mx-auto" />
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'bag' && (
+              <motion.div
+                key="tab-bag-content"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="space-y-4"
+              >
+                {/* Silver Coins Purse */}
+                <div className="bg-[#1f2c34]/50 p-3 rounded-2xl border border-slate-700/20 flex items-center justify-between">
+                  <span className="text-xs text-slate-400 flex items-center gap-1.5 font-bold">
+                    <Coins className="w-4 h-4 text-amber-400" />
+                    Moedas e Pratas:
+                  </span>
+                  <span className="text-sm font-mono font-bold text-amber-300">
+                    {gameState.inventory.find(i => i.name.toLowerCase().includes('prata') || i.name.toLowerCase().includes('moeda'))?.quantity || 12} Pratas
+                  </span>
+                </div>
+
+                {/* Bolsa Section */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Layers className="w-4 h-4 text-emerald-400" />
+                    <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-300">Bolsa de Inventário</h3>
                   </div>
 
-                  {/* MP Bar */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs font-bold">
-                      <div className="flex items-center gap-1 text-indigo-400">
-                        <Feather className="w-3.5 h-3.5" />
-                        <span>MANA (MP)</span>
-                      </div>
-                      <span className="text-indigo-400">{gameState.character.mp} / {gameState.character.maxMp}</span>
+                  {gameState.inventory && gameState.inventory.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {gameState.inventory.map((item: Item) => {
+                        const isExpanded = expandedItem === item.name;
+                        return (
+                          <div 
+                            key={item.name}
+                            className={`border rounded-xl transition-all ${
+                              isExpanded 
+                                ? 'bg-slate-800/40 border-emerald-500/30' 
+                                : 'bg-slate-800/15 hover:bg-slate-800/30 border-slate-700/20'
+                            }`}
+                          >
+                            <div 
+                              onClick={() => setExpandedItem(isExpanded ? null : item.name)}
+                              className="p-3 flex items-center justify-between gap-3 cursor-pointer select-none"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-xs text-slate-200 truncate">{item.name}</span>
+                                  {item.bonus && (
+                                    <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1 rounded font-mono font-bold">
+                                      {item.bonus}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider">
+                                  {item.type === 'weapon' ? '🗡️ Equipamento' : item.type === 'consumable' ? '🧪 Consumível' : '🗝️ Item Chave'}
+                                </span>
+                              </div>
+                              <span className="text-amber-300 font-mono bg-amber-500/10 border border-amber-500/25 rounded px-1.5 text-xs font-bold shrink-0">
+                                {item.quantity}x
+                              </span>
+                            </div>
+
+                            {isExpanded && (
+                              <div className="px-3 pb-3 pt-1 border-t border-slate-700/30 space-y-2 text-xs">
+                                <p className="text-slate-300 leading-relaxed text-[11px] select-text">
+                                  {item.description}
+                                </p>
+                                <div className="flex items-center gap-2 pt-1.5">
+                                  {(item.type === 'consumable' || item.type === 'weapon' || item.type === 'armor') && (
+                                    <button
+                                      onClick={() => handleQuickAction(item.type === 'consumable' ? `Usar item: ${item.name}` : `Equipar item: ${item.name}`)}
+                                      className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[10px] transition-colors cursor-pointer text-center"
+                                    >
+                                      {item.type === 'consumable' ? '🧪 Usar Item' : '🗡️ Equipar'}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleQuickAction(`Examinar item: ${item.name}`)}
+                                    className="flex-1 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-lg text-[10px] transition-colors cursor-pointer text-center"
+                                  >
+                                    🔍 Examinar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-indigo-950/20">
-                      <div 
-                        className="h-full bg-gradient-to-r from-indigo-500 to-sky-600 transition-all duration-300" 
-                        style={{ width: `${Math.max(0, Math.min(100, (gameState.character.mp / gameState.character.maxMp) * 100))}%` }}
-                      />
+                  ) : (
+                    <div className="p-4 text-center bg-slate-800/10 border border-slate-700/10 rounded-xl">
+                      <p className="text-[11px] text-slate-500 leading-normal italic">
+                        Sua bolsa de aventura está vazia. Itens e moedas coletados surgirão aqui para uso tático instantâneo.
+                      </p>
                     </div>
+                  )}
+                </div>
+
+                {/* Grimório Section */}
+                <div className="pt-2 border-t border-[#222e35]">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <BookOpen className="w-4 h-4 text-indigo-400" />
+                    <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-300">Grimório de Magias</h3>
                   </div>
 
-                  {/* Level & XP */}
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-[11px] font-bold text-slate-400">
-                      <span>PROGRESSO DE EXP</span>
-                      <span>{gameState.character.xp} / {gameState.character.nextLevelXp} XP</span>
+                  {gameState.grimoire && gameState.grimoire.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {gameState.grimoire.map((skill: Skill) => {
+                        // Check if player has enough MP to cast
+                        const mpMatch = skill.cost.match(/(\d+)\s*MP/i);
+                        const mpCost = mpMatch ? parseInt(mpMatch[1], 10) : 0;
+                        const hasMp = gameState.character ? (gameState.character.mp >= mpCost) : false;
+                        const isCasting = castingSkillEffect === skill.name;
+
+                        return (
+                          <div 
+                            key={skill.name} 
+                            className="p-3 bg-[#111b21] border border-indigo-500/15 rounded-xl hover:border-indigo-500/35 transition-all text-xs"
+                          >
+                            <div className="flex justify-between font-semibold items-center">
+                              <span className="text-indigo-300 font-display font-bold">{skill.name}</span>
+                              <span className="text-sky-300 text-[10px] font-mono bg-sky-500/10 border border-sky-500/20 px-1.5 rounded-md">{skill.cost}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1 leading-relaxed select-text">{skill.description}</p>
+                            
+                            <div className="flex gap-2 items-center mt-2 pt-2 border-t border-indigo-500/10 text-[9px] text-slate-500 justify-between">
+                              <div className="flex gap-2">
+                                <span>Foco: <strong className="text-slate-400">{skill.type}</strong></span>
+                                <span>•</span>
+                                <span>Nível: <strong className="text-slate-400">{skill.level}</strong></span>
+                              </div>
+
+                              <button
+                                onClick={() => {
+                                  if (hasMp) {
+                                    setCastingSkillEffect(skill.name);
+                                    handleQuickAction(`Conjurar habilidade: ${skill.name}`);
+                                    setTimeout(() => setCastingSkillEffect(null), 1000);
+                                  }
+                                }}
+                                disabled={!hasMp || isLoading || isCasting}
+                                className={`px-2.5 py-1 rounded-md text-[9px] font-bold transition-all cursor-pointer ${
+                                  isCasting 
+                                    ? 'bg-amber-500 text-slate-900 animate-ping' 
+                                    : hasMp 
+                                      ? 'bg-indigo-600/30 text-indigo-300 hover:bg-indigo-600 hover:text-white' 
+                                      : 'bg-slate-800 text-slate-500 border border-slate-700/20 cursor-not-allowed'
+                                }`}
+                              >
+                                {isCasting ? 'Conjurando!' : hasMp ? '🔮 Conjurar' : '🔒 Sem Mana'}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center bg-slate-800/10 border border-slate-700/10 rounded-xl">
+                      <p className="text-[11px] text-slate-500 leading-normal italic">
+                        O grimório está em branco. Desbloqueie magias místicas da lua ou rituais solares no decorrer das escolhas táticas de sua campanha.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'mundo' && (
+              <motion.div
+                key="tab-mundo-content"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="space-y-4"
+              >
+                {/* World State Overview */}
+                <div className="bg-[#111b21] border border-[#222e35] p-3 rounded-2xl space-y-2">
+                  <div className="flex justify-between items-center text-xs font-mono text-slate-400">
+                    <span>📍 Localização Atual:</span>
+                    <strong className="text-white">{gameState.location}</strong>
+                  </div>
+                  <div className="flex justify-between items-center text-xs font-mono text-slate-400">
+                    <span>🌅 Ciclo da Luz:</span>
+                    <strong className="text-sky-300 font-bold">{gameState.timeOfDay}</strong>
+                  </div>
+                  <div className="space-y-1 pt-1.5 border-t border-[#222e35]">
+                    <div className="flex justify-between text-[11px] font-mono text-slate-400">
+                      <span>Nível de Miasma (Podridão):</span>
+                      <strong className="text-purple-400">{gameState.rotLevel}%</strong>
                     </div>
                     <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-amber-500 transition-all duration-300" 
-                        style={{ width: `${Math.max(0, Math.min(100, (gameState.character.xp / gameState.character.nextLevelXp) * 100))}%` }}
+                        className="h-full bg-gradient-to-r from-purple-500 to-fuchsia-600 transition-all duration-500" 
+                        style={{ width: `${gameState.rotLevel}%` }}
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Attributes breakdown sheet */}
-                <div className="bg-[#1f2c34]/50 border border-slate-700/25 p-3 rounded-2xl">
-                  <div className="text-[10px] text-slate-400 font-mono tracking-wider uppercase font-semibold mb-2">Atributos Primários</div>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                    <div className="flex items-center justify-between p-1.5 bg-slate-800/30 rounded-lg">
-                      <span className="text-slate-400">🗡️ FOR:</span>
-                      <strong className="text-rose-300 text-sm">{gameState.character.attributes.for}</strong>
-                    </div>
-                    <div className="flex items-center justify-between p-1.5 bg-slate-800/30 rounded-lg">
-                      <span className="text-slate-400">⚡ AGI:</span>
-                      <strong className="text-amber-300 text-sm">{gameState.character.attributes.agi}</strong>
-                    </div>
-                    <div className="flex items-center justify-between p-1.5 bg-slate-800/30 rounded-lg">
-                      <span className="text-slate-400">🔮 INT:</span>
-                      <strong className="text-indigo-300 text-sm">{gameState.character.attributes.int}</strong>
-                    </div>
-                    <div className="flex items-center justify-between p-1.5 bg-slate-800/30 rounded-lg">
-                      <span className="text-slate-400">🛡️ VIT:</span>
-                      <strong className="text-emerald-300 text-sm">{gameState.character.attributes.vit}</strong>
-                    </div>
-                    <div className="flex items-center justify-between p-1.5 bg-slate-800/30 rounded-lg">
-                      <span className="text-slate-400">👁️ PER:</span>
-                      <strong className="text-sky-300 text-sm">{gameState.character.attributes.per}</strong>
-                    </div>
-                    <div className="flex items-center justify-between p-1.5 bg-slate-800/30 rounded-lg">
-                      <span className="text-slate-400">🧘 WIL:</span>
-                      <strong className="text-purple-300 text-sm">{gameState.character.attributes.wil}</strong>
-                    </div>
+                {/* Interactive World Map Grid */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Map className="w-4 h-4 text-amber-400" />
+                    <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-300">Mapa Tático Astral-Solaria</h3>
+                  </div>
+
+                  {/* Visual Map Canvas Grid */}
+                  <div className="relative w-full h-44 bg-[#0a1014] border border-slate-700/30 rounded-2xl overflow-hidden shadow-inner flex items-center justify-center p-2">
+                    {/* Stylized background lines mimicking cosmic nodes */}
+                    <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#1e1b4b_1px,transparent_1px)] [background-size:16px_16px]" />
+                    <div className="absolute w-full h-0.5 bg-slate-700/20 top-1/2 left-0" />
+                    <div className="absolute h-full w-0.5 bg-slate-700/20 left-1/2 top-0" />
+                    <div className="absolute w-44 h-44 border border-dashed border-indigo-500/10 rounded-full" />
+
+                    {/* Nodes Loop */}
+                    {MAP_NODES.map((node) => {
+                      const isCurrent = gameState.location.toLowerCase().includes(node.name.toLowerCase().split(' ')[0]) || 
+                                        node.name.toLowerCase().includes(gameState.location.toLowerCase().split(' ')[0]);
+                      const isSelected = selectedMapNode === node.name;
+
+                      return (
+                        <button
+                          key={node.name}
+                          onClick={() => setSelectedMapNode(node.name)}
+                          className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all focus:outline-none"
+                          style={{ left: node.x, top: node.y }}
+                          title={node.name}
+                        >
+                          <div className="relative flex items-center justify-center">
+                            {isCurrent && (
+                              <span className="absolute inline-flex h-6 w-6 rounded-full bg-emerald-400/20 animate-ping" />
+                            )}
+                            <div className={`w-3.5 h-3.5 rounded-full border-2 transition-all ${
+                              isCurrent 
+                                ? 'bg-emerald-500 border-white ring-2 ring-emerald-500/20 scale-125 z-10' 
+                                : isSelected 
+                                  ? 'bg-amber-400 border-slate-900 scale-110 z-10' 
+                                  : 'bg-slate-800 border-slate-600 hover:bg-slate-600'
+                            }`} />
+                          </div>
+                        </button>
+                      );
+                    })}
+
+                    <span className="absolute bottom-2 right-2 text-[9px] font-mono text-slate-500 tracking-wider">MAPA CONTÍNUO</span>
+                  </div>
+
+                  {/* Selected Node Details Card */}
+                  <div className="mt-2 bg-[#111b21] border border-slate-700/20 p-3 rounded-2xl">
+                    {selectedMapNode ? (() => {
+                      const node = MAP_NODES.find(n => n.name === selectedMapNode);
+                      if (!node) return null;
+                      const isCurrent = gameState.location.toLowerCase().includes(node.name.toLowerCase().split(' ')[0]) || 
+                                        node.name.toLowerCase().includes(gameState.location.toLowerCase().split(' ')[0]);
+
+                      return (
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-bold text-amber-300 font-display">{node.name}</h4>
+                            <span className="text-[9px] font-mono px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700/30 text-slate-400">
+                              Miasma: {node.miasma}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-normal">{node.description}</p>
+                          <div className="flex justify-between items-center text-[10px] font-mono text-slate-500 pt-1.5 border-t border-slate-800">
+                            <span>Facção: <strong className="text-slate-400">{node.faction}</strong></span>
+                            {isCurrent ? (
+                              <span className="text-emerald-400 font-bold flex items-center gap-1">📌 VOCÊ ESTÁ AQUI</span>
+                            ) : (
+                              <button
+                                onClick={() => handleQuickAction(`Viajar para ${node.name}`)}
+                                className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-slate-900 font-bold rounded-lg transition-all cursor-pointer"
+                              >
+                                📍 Viajar para lá
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <div className="text-center py-2 text-[11px] text-slate-500 italic">
+                        Clique em qualquer ponto do mapa tático acima para ver a lore, miasma local e viajar instantaneamente.
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Titles and Cicatrizes */}
-                {((gameState.character.titles && gameState.character.titles.length > 0) || 
-                  (gameState.character.cicatrizes && gameState.character.cicatrizes.length > 0)) && (
-                  <div className="space-y-2 pt-1">
-                    {gameState.character.titles && gameState.character.titles.length > 0 && (
-                      <div>
-                        <div className="text-[10px] text-amber-400 font-mono tracking-wider uppercase font-semibold mb-1">👑 Títulos Obtidos:</div>
-                        <div className="flex flex-wrap gap-1">
-                          {gameState.character.titles.map(title => (
-                            <span key={title} className="bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] font-semibold py-0.5 px-2 rounded-full">
-                              {title}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {gameState.character.cicatrizes && gameState.character.cicatrizes.length > 0 && (
-                      <div>
-                        <div className="text-[10px] text-rose-400 font-mono tracking-wider uppercase font-semibold mb-1">🩸 Cicatrizes de Batalha:</div>
-                        <div className="flex flex-wrap gap-1">
-                          {gameState.character.cicatrizes.map(scar => (
-                            <span key={scar} className="bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[10px] py-0.5 px-2 rounded-full">
-                              {scar}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                {/* Faction Standing Section */}
+                <div className="pt-2 border-t border-[#222e35]">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <ShieldAlert className="w-4 h-4 text-emerald-400" />
+                    <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-300">Afinidades e Reputações</h3>
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-8 text-center bg-[#1f2c34]/50 rounded-2xl border border-slate-700/25">
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Inicie a criação de personagem no chat principal para desbloquear sua ficha técnica e atributos!
-                </p>
-                <div className="w-10 h-10 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin mx-auto mt-4" />
-              </div>
+
+                  <div className="space-y-2">
+                    {Object.entries(gameState.factionAffinities || {}).map(([faction, value]) => {
+                      const percent = Math.min(Math.max((value + 100) / 2, 0), 100);
+                      // Determine reputation standing label
+                      let standing = "Neutro";
+                      let colorClass = "text-slate-400";
+                      if (value <= -50) { standing = "Odiado"; colorClass = "text-red-500"; }
+                      else if (value < -10) { standing = "Hostil"; colorClass = "text-rose-400"; }
+                      else if (value > 50) { standing = "Reverenciado"; colorClass = "text-indigo-400"; }
+                      else if (value > 15) { standing = "Amigável"; colorClass = "text-emerald-400"; }
+
+                      return (
+                        <div key={faction} className="p-3 bg-slate-800/15 border border-slate-700/15 rounded-xl space-y-1">
+                          <div className="flex justify-between font-mono text-xs text-slate-200">
+                            <span className="font-bold">{faction}</span>
+                            <span className={`font-semibold ${colorClass}`}>{standing} ({value > 0 ? `+${value}` : value})</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500 leading-snug">
+                            {faction === "Império Solar" 
+                              ? "Militaristas que usam tecnologia térmica de bronze e latão." 
+                              : faction === "Guarda da Lua" 
+                                ? "Místicas lunares controlando segredos gravitacionais e mana." 
+                                : "A seita corrompida espalhando o miasma biomecânico de Solaria."}
+                          </p>
+                          <div className="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${value >= 0 ? 'bg-emerald-500' : 'bg-red-500'} transition-all`}
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </motion.div>
             )}
-          </div>
-        )}
 
-        {/* Grimório (Habilidades adquiridas) & Bolsa (Inventário) */}
-        {(activeMobileTab === 'bag' || activeMobileTab === 'chat') && (
-          <div className="p-4 border-b border-[#222e35] space-y-4">
-            {/* Grimório */}
-            <div>
-              <div className="flex items-center gap-1.5 mb-2.5">
-                <BookOpen className="w-4 h-4 text-indigo-400" />
-                <h3 className="font-display font-bold text-xs uppercase tracking-wider text-white">Grimório Persistente</h3>
-              </div>
-              
-              {gameState.grimoire && gameState.grimoire.length > 0 ? (
-                <div className="space-y-1.5">
-                  {gameState.grimoire.map((skill: Skill) => (
-                    <div 
-                      key={skill.name} 
-                      className="p-2.5 bg-indigo-950/20 border border-indigo-500/15 rounded-xl text-xs hover:border-indigo-500/30 transition-all"
-                    >
-                      <div className="flex justify-between font-semibold">
-                        <span className="text-indigo-300">{skill.name}</span>
-                        <span className="text-sky-300 text-[10px] font-mono">{skill.cost}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-normal">{skill.description}</p>
-                      <div className="flex gap-2 items-center mt-1.5 pt-1.5 border-t border-indigo-500/5 text-[10px] text-slate-500">
-                        <span>Foco: <strong className="text-slate-400">{skill.type}</strong></span>
-                        <span>•</span>
-                        <span>Nível: <strong className="text-slate-400">{skill.level}</strong></span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 leading-normal italic py-1">
-                  Seu grimório está vazio. Aprenda habilidades táticas e mágicas com o decorrer da aventura.
-                </p>
-              )}
-            </div>
+            {activeTab === 'diario' && (
+              <motion.div
+                key="tab-diario-content"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="space-y-4"
+              >
+                {/* Active and Complete Quests Section */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <Award className="w-4 h-4 text-emerald-400" />
+                    <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-300">Grimório de Missões</h3>
+                  </div>
 
-            {/* Bolsa (Inventário) */}
-            <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-amber-400" />
-                  <h3 className="font-display font-bold text-xs uppercase tracking-wider text-white">Bolsa de Inventário</h3>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] text-amber-400 font-mono font-bold">
-                  <Coins className="w-3.5 h-3.5" />
-                  <span>Coins Prata</span>
-                </div>
-              </div>
-
-              {gameState.inventory && gameState.inventory.length > 0 ? (
-                <div className="grid grid-cols-1 gap-1.5">
-                  {gameState.inventory.map((item: Item) => (
-                    <div 
-                      key={item.name} 
-                      className="p-2 bg-slate-800/30 border border-slate-700/20 rounded-xl text-xs flex justify-between items-start gap-2"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1">
-                          <span className="font-semibold text-slate-200 truncate">{item.name}</span>
-                          {item.bonus && (
-                            <span className="text-[9px] bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 px-1 rounded font-mono font-bold">
-                              {item.bonus}
+                  {gameState.quests && gameState.quests.length > 0 ? (
+                    <div className="space-y-2">
+                      {gameState.quests.map((quest: Quest) => (
+                        <div 
+                          key={quest.id} 
+                          className="p-3 bg-[#111b21] border border-slate-700/20 rounded-xl text-xs space-y-1"
+                        >
+                          <div className="flex justify-between items-center gap-2">
+                            <strong className="text-slate-200 leading-tight font-display text-[13px]">{quest.title}</strong>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase shrink-0 ${
+                              quest.status === 'completed' 
+                                ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400' 
+                                : quest.status === 'failed' 
+                                  ? 'bg-rose-500/15 border border-rose-500/30 text-rose-400' 
+                                  : 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
+                            }`}>
+                              {quest.status === 'completed' ? 'CONCLUÍDO' : quest.status === 'failed' ? 'FALHADO' : 'ATIVO'}
                             </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed select-text">{quest.description}</p>
+                          {quest.reward && (
+                            <div className="pt-1 text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                              <span>🎁 Recompensa:</span>
+                              <strong>{quest.reward}</strong>
+                            </div>
                           )}
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-0.5 leading-snug line-clamp-1">{item.description}</p>
-                      </div>
-                      <span className="text-amber-300 font-mono bg-amber-500/10 border border-amber-500/20 rounded px-1.5 text-[10px] font-semibold shrink-0">
-                        {item.quantity}x
-                      </span>
+                      ))}
                     </div>
-                  ))}
+                  ) : (
+                    <div className="p-4 text-center bg-slate-800/10 border border-slate-700/10 rounded-xl">
+                      <p className="text-[11px] text-slate-500 leading-normal italic">
+                        Sem missões ativas registradas em seu diário cósmico. Desbloqueie aventuras explorando o território.
+                      </p>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 leading-normal italic py-1">
-                  Nenhum item na bolsa. Colete materiais e tesouros ao explorar e derrotar monstros.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* Efeito Borboleta & Diário de Missões */}
-        {(activeMobileTab === 'butterfly' || activeMobileTab === 'chat') && (
-          <div className="p-4 space-y-4">
-            {/* Missões Diárias */}
-            <div>
-              <div className="flex items-center gap-1.5 mb-2.5">
-                <Award className="w-4 h-4 text-emerald-400" />
-                <h3 className="font-display font-bold text-xs uppercase tracking-wider text-white">Diário de Missões</h3>
-              </div>
+                {/* Destiny Chronology (Butterfly Effects) */}
+                <div className="pt-2 border-t border-[#222e35]">
+                  <div className="flex items-center gap-1.5 mb-2.5">
+                    <TrendingUp className="w-4 h-4 text-rose-400 animate-pulse" />
+                    <h3 className="font-display font-bold text-xs uppercase tracking-wider text-slate-300">Teias do Destino (Borboleta)</h3>
+                  </div>
 
-              {gameState.quests && gameState.quests.length > 0 ? (
-                <div className="space-y-1.5">
-                  {gameState.quests.map((quest: Quest) => (
-                    <div 
-                      key={quest.id} 
-                      className="p-2.5 bg-slate-800/30 border border-slate-700/20 rounded-xl text-xs"
-                    >
-                      <div className="flex justify-between items-center">
-                        <strong className="text-slate-200 leading-tight block">{quest.title}</strong>
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
-                          quest.status === 'completed' 
-                            ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400' 
-                            : quest.status === 'failed' 
-                              ? 'bg-rose-500/15 border border-rose-500/30 text-rose-400' 
-                              : 'bg-amber-500/15 border border-amber-500/30 text-amber-400'
-                        }`}>
-                          {quest.status === 'completed' ? 'CONCLUÍDO' : quest.status === 'failed' ? 'FALHADO' : 'ATIVO'}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-400 mt-1 leading-normal">{quest.description}</p>
-                      {quest.reward && (
-                        <div className="mt-1 text-[10px] text-emerald-400 font-mono">
-                          Recompensa: <strong>{quest.reward}</strong>
+                  {gameState.butterflyEffects && gameState.butterflyEffects.length > 0 ? (
+                    <div className="relative border-l border-[#222e35] pl-3 ml-2.5 space-y-3.5 pt-1">
+                      {gameState.butterflyEffects.map((effect, idx) => (
+                        <div key={idx} className="relative text-xs">
+                          {/* Chronological pointer indicator */}
+                          <span className="absolute -left-[17px] top-1 w-2 h-2 rounded-full bg-rose-500 ring-4 ring-[#0c1317]" />
+                          <div className="p-2.5 bg-rose-950/15 border border-rose-500/10 text-rose-300 rounded-xl">
+                            <p className="leading-relaxed select-text font-mono text-[11px]">{effect}</p>
+                          </div>
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 leading-normal italic py-1">
-                  Sem missões ativas no momento.
-                </p>
-              )}
-            </div>
-
-            {/* Efeito Borboleta */}
-            <div>
-              <div className="flex items-center gap-1.5 mb-2.5">
-                <TrendingUp className="w-4 h-4 text-rose-400 animate-pulse" />
-                <h3 className="font-display font-bold text-xs uppercase tracking-wider text-white">Efeito Borboleta (Destino)</h3>
-              </div>
-              
-              {gameState.butterflyEffects && gameState.butterflyEffects.length > 0 ? (
-                <div className="space-y-1.5 font-mono text-[11px]">
-                  {gameState.butterflyEffects.map((effect, idx) => (
-                    <div 
-                      key={idx} 
-                      className="p-2 bg-rose-950/10 border border-rose-500/10 text-rose-300 rounded-xl flex gap-2 items-start"
-                    >
-                      <CheckCircle className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
-                      <p className="leading-relaxed select-text">{effect}</p>
+                  ) : (
+                    <div className="p-4 text-center bg-slate-800/10 border border-slate-700/10 rounded-xl">
+                      <p className="text-[11px] text-slate-500 leading-normal italic">
+                        Nenhuma escolha drástica que altere as linhas rúnicas foi gravada ainda. Suas decisões marcarão a teia temporal.
+                      </p>
                     </div>
-                  ))}
+                  )}
                 </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 leading-normal italic py-1">
-                  Nenhuma grande decisão tomada ainda. Suas escolhas críticas que alterarem o destino do mundo serão eternizadas aqui.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </aside>
     </div>
   );

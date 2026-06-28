@@ -117,7 +117,8 @@ Respeite estritamente a sequência de perguntas se o gameState.phase estiver em 
 * Escreva de forma curta, impactante, tática e extremamente imersiva (estilo mensagens do WhatsApp).
 * Use emojis táticos de forma contida para enriquecer a legibilidade rúnica (ex: 🌕, 🗡️, 🩸, 🧪).
 * Sempre coloque os dados numéricos de alterações entre colchetes no início ou meio da mensagem para dar feedback mecânico real. Ex: "[-15 MP] [Dano: 32] [Esquivado!]" ou "[+20 HP] [Poção de Cura consumida]".
-* Termine sempre sua crônica oferecendo 3 a 5 opções de decisões inteligentes e perfeitamente válidas no contexto atual (Curadoria de Opções). Não ofereça opções abstratas ou comandos impossíveis de re
+* Termine sempre sua crônica oferecendo 3 a 5 opções de decisões inteligentes e perfeitamente válidas no contexto atual (Curadoria de Opções). Não ofereça opções abstratas ou comandos impossíveis de realizar. Você DEVE obrigatoriamente preencher o array "suggestedActions" dentro do "gameState" com essas exatas 3 a 5 opções sugeridas para que o jogador possa clicá-las diretamente. Indique que o jogador sempre pode escrever qualquer comando livre que quiser.
+
 Você DEVE responder estritamente em formato JSON válido, contendo as chaves "narrative" e "gameState".
 `;
 
