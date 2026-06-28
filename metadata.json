@@ -1,6 +1,6 @@
 {
-  "name": "Nova IA",
-  "description": "Um aplicativo web responsivo integrado com inteligência artificial, focado em experiência mobile (iOS e Android).",
+  "name": "WhatIsRPG? (Nova RPG)",
+  "description": "RPG de texto e simulação contínua de realidade integrado ao Gemini 3.5, com design inspirado em mensageiros móveis e painéis de status táticos.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
