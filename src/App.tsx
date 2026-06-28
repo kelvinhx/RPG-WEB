@@ -97,6 +97,25 @@ const MAP_NODES = [
   }
 ];
 
+// Helper to make fetch requests extremely robust against temporary network dropouts or cold start container delays
+const fetchWithRetry = async (url: string, options: RequestInit, retries = 3, delay = 1500): Promise<Response> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok || (response.status >= 400 && response.status < 500)) {
+        return response;
+      }
+      throw new Error(`Servidor retornou status ${response.status}`);
+    } catch (err: any) {
+      if (i === retries - 1) throw err;
+      console.warn(`[Network] Tentativa de conexão ${i + 1} falhou. Tentando novamente em ${delay}ms...`, err);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2; // Backoff exponencial
+    }
+  }
+  throw new Error("Falha de conexão com as linhas rúnicas após várias tentativas.");
+};
+
 export default function App() {
   // Load state from local storage or fallback to default
   const [gameState, setGameState] = useState<GameState>(() => {
@@ -174,7 +193,7 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetchWithRetry('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
