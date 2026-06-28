@@ -1,0 +1,6 @@
+{
+  "name": "Nova IA",
+  "description": "Um aplicativo web responsivo integrado com inteligência artificial, focado em experiência mobile (iOS e Android).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
