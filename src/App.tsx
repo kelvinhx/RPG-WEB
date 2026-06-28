@@ -39,6 +39,7 @@ const initialGameState: GameState = {
   butterflyEffects: [],
   rotLevel: 5,
   timeOfDay: 'Manhã',
+  suggestedActions: [],
 };
 
 // Initial welcome message
@@ -329,7 +330,7 @@ export default function App() {
 
     // Normal game: phase === 'playing' (Módulo 2: Curadoria de Opções, max de 5 opções inteligentes)
     return (
-      <div className="flex flex-col gap-2 w-full">
+      <div className="flex flex-col gap-2.5 w-full">
         {/* Grimoire casting panel directly integrated */}
         {grimoire && grimoire.length > 0 && (
           <div className="flex flex-wrap gap-1.5 items-center justify-start bg-indigo-950/35 p-1.5 rounded-xl border border-indigo-500/10">
@@ -339,9 +340,9 @@ export default function App() {
                 id={`cast-${skill.name}`}
                 key={skill.name}
                 onClick={() => handleQuickAction(`Conjurar habilidade: ${skill.name}`)}
-                className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/30 text-indigo-200 text-xs rounded-lg font-medium transition-all"
+                className="px-2.5 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/30 text-indigo-200 text-xs rounded-lg font-medium transition-all cursor-pointer min-h-[32px] flex items-center"
               >
-                {skill.name} <span className="text-[9px] opacity-60">({skill.cost})</span>
+                {skill.name} <span className="text-[9px] opacity-60 ml-1">({skill.cost})</span>
               </button>
             ))}
           </div>
@@ -356,11 +357,32 @@ export default function App() {
                 id={`use-${item.name}`}
                 key={item.name}
                 onClick={() => handleQuickAction(`Usar item: ${item.name}`)}
-                className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/30 text-emerald-200 text-xs rounded-lg font-medium transition-all"
+                className="px-2.5 py-1 bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/30 text-emerald-200 text-xs rounded-lg font-medium transition-all cursor-pointer min-h-[32px] flex items-center"
               >
-                {item.name} <span className="text-[9px] opacity-60">({item.quantity}x)</span>
+                {item.name} <span className="text-[9px] opacity-60 ml-1">({item.quantity}x)</span>
               </button>
             ))}
+          </div>
+        )}
+
+        {/* Dynamic Suggested Actions from DM / Causalidade */}
+        {gameState.suggestedActions && gameState.suggestedActions.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-semibold px-1">Decisões de Destino:</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {gameState.suggestedActions.map((action, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleQuickAction(action)}
+                  className="px-3.5 py-2.5 bg-gradient-to-r from-[#202c33] to-[#26353d] hover:from-slate-800 hover:to-indigo-950/40 text-slate-100 hover:text-indigo-300 text-xs font-semibold rounded-2xl text-left border border-slate-700/30 hover:border-indigo-500/40 transition-all flex items-center gap-2.5 shadow-sm min-h-[44px] cursor-pointer"
+                >
+                  <span className="w-5 h-5 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0 font-mono text-[10px] font-bold">
+                    {idx + 1}
+                  </span>
+                  <span className="leading-tight break-words flex-1">{action}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -369,7 +391,7 @@ export default function App() {
           <button
             id="action-explore"
             onClick={() => handleQuickAction("Explorar arredores meticulosamente")}
-            className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 flex flex-col items-center gap-1 shadow-sm"
+            className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 flex flex-col items-center gap-1 shadow-sm cursor-pointer min-h-[44px] justify-center"
           >
             <Compass className="w-4 h-4 text-amber-400" />
             <span>Explorar</span>
@@ -377,7 +399,7 @@ export default function App() {
           <button
             id="action-search"
             onClick={() => handleQuickAction("Olhar ao redor em busca de pistas ou segredos")}
-            className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 flex flex-col items-center gap-1 shadow-sm"
+            className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 flex flex-col items-center gap-1 shadow-sm cursor-pointer min-h-[44px] justify-center"
           >
             <User className="w-4 h-4 text-sky-400" />
             <span>Vasculhar</span>
@@ -385,10 +407,10 @@ export default function App() {
           <button
             id="action-status"
             onClick={() => handleQuickAction("Verificar estado físico e examinar cicatrizes")}
-            className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 flex flex-col items-center gap-1 shadow-sm"
+            className="py-2.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold border border-slate-700 flex flex-col items-center gap-1 shadow-sm cursor-pointer min-h-[44px] justify-center"
           >
             <Activity className="w-4 h-4 text-emerald-400" />
-            <span>Checar Status</span>
+            <span>Status</span>
           </button>
         </div>
       </div>
@@ -758,7 +780,10 @@ export default function App() {
         {/* 
           MOBILE BOTTOM NAVIGATION TAB BAR
         */}
-        <nav className="lg:hidden bg-[#111b21] border-t border-[#222e35] grid grid-cols-4 py-2 text-center select-none shrink-0">
+        <nav 
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}
+          className="lg:hidden bg-[#111b21] border-t border-[#222e35] grid grid-cols-4 pt-2 text-center select-none shrink-0"
+        >
           <button 
             id="tab-chat"
             onClick={() => setActiveMobileTab('chat')}

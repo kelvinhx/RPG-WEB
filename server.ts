@@ -117,150 +117,201 @@ Respeite estritamente a sequência de perguntas se o gameState.phase estiver em 
 * Escreva de forma curta, impactante, tática e extremamente imersiva (estilo mensagens do WhatsApp).
 * Use emojis táticos de forma contida para enriquecer a legibilidade rúnica (ex: 🌕, 🗡️, 🩸, 🧪).
 * Sempre coloque os dados numéricos de alterações entre colchetes no início ou meio da mensagem para dar feedback mecânico real. Ex: "[-15 MP] [Dano: 32] [Esquivado!]" ou "[+20 HP] [Poção de Cura consumida]".
-* Termine sempre sua crônica oferecendo 3 a 5 opções de decisões inteligentes e perfeitamente válidas no contexto atual (Curadoria de Opções). Não ofereça opções abstratas ou comandos impossíveis de realizar. Indique que o jogador sempre pode escrever qualquer comando livre que quiser.
-
+* Termine sempre sua crônica oferecendo 3 a 5 opções de decisões inteligentes e perfeitamente válidas no contexto atual (Curadoria de Opções). Não ofereça opções abstratas ou comandos impossíveis de re
 Você DEVE responder estritamente em formato JSON válido, contendo as chaves "narrative" e "gameState".
 `;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: [
-          { text: `Aqui está o histórico e o estado do jogo atual:\n${JSON.stringify(gameState || {})}` },
-          { text: `O jogador enviou a seguinte mensagem/ação:\n"${prompt}"` }
-        ],
-        config: {
-          systemInstruction,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              narrative: {
-                type: Type.STRING,
-                description: "A resposta narrativa em português formatada com Markdown que o jogador verá no chat do WhatsApp."
-              },
-              gameState: {
-                type: Type.OBJECT,
-                description: "O objeto de estado do jogo atualizado de acordo com a ação e simulação.",
-                properties: {
-                  phase: { type: Type.STRING },
-                  character: {
-                    type: Type.OBJECT,
-                    nullable: true,
-                    properties: {
-                      name: { type: Type.STRING },
-                      appearance: { type: Type.STRING },
-                      gender: { type: Type.STRING },
-                      sexuality: { type: Type.STRING },
-                      race: { type: Type.STRING },
-                      className: { type: Type.STRING },
-                      subclass: { type: Type.STRING },
-                      level: { type: Type.INTEGER },
-                      xp: { type: Type.INTEGER },
-                      nextLevelXp: { type: Type.INTEGER },
-                      hp: { type: Type.INTEGER },
-                      maxHp: { type: Type.INTEGER },
-                      mp: { type: Type.INTEGER },
-                      maxMp: { type: Type.INTEGER },
-                      attributes: {
-                        type: Type.OBJECT,
-                        properties: {
-                          for: { type: Type.INTEGER },
-                          agi: { type: Type.INTEGER },
-                          int: { type: Type.INTEGER },
-                          vit: { type: Type.INTEGER },
-                          per: { type: Type.INTEGER },
-                          wil: { type: Type.INTEGER },
-                        }
-                      },
-                      titles: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      cicatrizes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    }
-                  },
-                  inventory: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        type: { type: Type.STRING },
-                        quantity: { type: Type.INTEGER },
-                        bonus: { type: Type.STRING },
-                      }
-                    }
-                  },
-                  grimoire: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        cost: { type: Type.STRING },
-                        type: { type: Type.STRING },
-                        level: { type: Type.INTEGER },
-                      }
-                    }
-                  },
-                  quests: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        id: { type: Type.STRING },
-                        title: { type: Type.STRING },
-                        description: { type: Type.STRING },
-                        status: { type: Type.STRING },
-                        reward: { type: Type.STRING },
-                      }
-                    }
-                  },
-                  combat: {
-                    type: Type.OBJECT,
-                    nullable: true,
-                    properties: {
-                      active: { type: Type.BOOLEAN },
-                      enemyName: { type: Type.STRING },
-                      enemyHp: { type: Type.INTEGER },
-                      enemyMaxHp: { type: Type.INTEGER },
-                      round: { type: Type.INTEGER },
-                      log: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    }
-                  },
-                  location: { type: Type.STRING },
-                  factionAffinities: {
-                    type: Type.OBJECT,
-                    additionalProperties: { type: Type.INTEGER }
-                  },
-                  butterflyEffects: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  rotLevel: { type: Type.INTEGER },
-                  timeOfDay: { type: Type.STRING },
-                },
-                required: [
-                  "phase",
-                  "character",
-                  "inventory",
-                  "grimoire",
-                  "quests",
-                  "combat",
-                  "location",
-                  "factionAffinities",
-                  "butterflyEffects",
-                  "rotLevel",
-                  "timeOfDay"
-                ]
-              }
-            },
-            required: ["narrative", "gameState"]
+      // Função auxiliar de retry com backoff exponencial para lidar com erros transitórios (503 / alta demanda)
+      const executeWithRetry = async (fn: () => Promise<any>, retries = 3, delay = 1500) => {
+        for (let attempt = 1; attempt <= retries; attempt++) {
+          try {
+            return await fn();
+          } catch (err: any) {
+            const isTransient = 
+              err?.status === 503 || 
+              err?.code === 503 ||
+              (err?.message && (
+                err.message.includes("503") || 
+                err.message.includes("high demand") || 
+                err.message.includes("UNAVAILABLE") || 
+                err.message.includes("rate limit") || 
+                err.message.includes("RESOURCE_EXHAUSTED") ||
+                err.message.includes("overloaded")
+              ));
+
+            if (isTransient && attempt < retries) {
+              console.warn(`[Gemini API] Tentativa ${attempt} falhou devido a indisponibilidade ou alta demanda. Tentando novamente em ${delay}ms...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              delay *= 2; // Dobra o tempo de espera (Backoff Exponencial)
+            } else {
+              throw err;
+            }
           }
         }
-      });
+      };
 
-      const parsedResponse = JSON.parse(response.text.trim());
-      res.json(parsedResponse);
+      let response;
+      try {
+        response = await executeWithRetry(() => ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: [
+            { text: `Aqui está o histórico e o estado do jogo atual:\n${JSON.stringify(gameState || {})}` },
+            { text: `O jogador enviou a seguinte mensagem/ação:\n"${prompt}"` }
+          ],
+          config: {
+            systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                narrative: {
+                  type: Type.STRING,
+                  description: "A resposta narrativa em português formatada com Markdown que o jogador verá no chat do WhatsApp."
+                },
+                gameState: {
+                  type: Type.OBJECT,
+                  description: "O objeto de estado do jogo atualizado de acordo com a ação e simulação.",
+                  properties: {
+                    phase: { type: Type.STRING },
+                    character: {
+                      type: Type.OBJECT,
+                      nullable: true,
+                      properties: {
+                        name: { type: Type.STRING },
+                        appearance: { type: Type.STRING },
+                        gender: { type: Type.STRING },
+                        sexuality: { type: Type.STRING },
+                        race: { type: Type.STRING },
+                        className: { type: Type.STRING },
+                        subclass: { type: Type.STRING },
+                        level: { type: Type.INTEGER },
+                        xp: { type: Type.INTEGER },
+                        nextLevelXp: { type: Type.INTEGER },
+                        hp: { type: Type.INTEGER },
+                        maxHp: { type: Type.INTEGER },
+                        mp: { type: Type.INTEGER },
+                        maxMp: { type: Type.INTEGER },
+                        attributes: {
+                          type: Type.OBJECT,
+                          properties: {
+                            for: { type: Type.INTEGER },
+                            agi: { type: Type.INTEGER },
+                            int: { type: Type.INTEGER },
+                            vit: { type: Type.INTEGER },
+                            per: { type: Type.INTEGER },
+                            wil: { type: Type.INTEGER },
+                          }
+                        },
+                        titles: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        cicatrizes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      }
+                    },
+                    inventory: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          name: { type: Type.STRING },
+                          description: { type: Type.STRING },
+                          type: { type: Type.STRING },
+                          quantity: { type: Type.INTEGER },
+                          bonus: { type: Type.STRING },
+                        }
+                      }
+                    },
+                    grimoire: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          name: { type: Type.STRING },
+                          description: { type: Type.STRING },
+                          cost: { type: Type.STRING },
+                          type: { type: Type.STRING },
+                          level: { type: Type.INTEGER },
+                        }
+                      }
+                    },
+                    quests: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          id: { type: Type.STRING },
+                          title: { type: Type.STRING },
+                          description: { type: Type.STRING },
+                          status: { type: Type.STRING },
+                          reward: { type: Type.STRING },
+                        }
+                      }
+                    },
+                    combat: {
+                      type: Type.OBJECT,
+                      nullable: true,
+                      properties: {
+                        active: { type: Type.BOOLEAN },
+                        enemyName: { type: Type.STRING },
+                        enemyHp: { type: Type.INTEGER },
+                        enemyMaxHp: { type: Type.INTEGER },
+                        round: { type: Type.INTEGER },
+                        log: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      }
+                    },
+                    location: { type: Type.STRING },
+                    factionAffinities: {
+                      type: Type.OBJECT,
+                      additionalProperties: { type: Type.INTEGER }
+                    },
+                    butterflyEffects: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    rotLevel: { type: Type.INTEGER },
+                    timeOfDay: { type: Type.STRING },
+                    suggestedActions: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  },
+                  required: [
+                    "phase",
+                    "character",
+                    "inventory",
+                    "grimoire",
+                    "quests",
+                    "combat",
+                    "location",
+                    "factionAffinities",
+                    "butterflyEffects",
+                    "rotLevel",
+                    "timeOfDay",
+                    "suggestedActions"
+                  ]
+                }
+              },
+              required: ["narrative", "gameState"]
+            }
+          }
+        }));
+
+        const parsedResponse = JSON.parse(response.text.trim());
+        res.json(parsedResponse);
+      } catch (innerError: any) {
+        console.error("Erro interno ao chamar ou parsear a resposta do Gemini:", innerError);
+        
+        // Em vez de falhar e retornar 500, vamos fingir que o Mestre enviou uma resposta no chat avisando sobre a instabilidade, preservando o estado do jogo do jogador intacto!
+        const fallbackActions = gameState?.suggestedActions && gameState.suggestedActions.length > 0 
+          ? gameState.suggestedActions 
+          : ["Tentar novamente", "Descansar na fogueira", "Olhar o mapa de Solaria"];
+
+        const fallbackResponse = {
+          narrative: `⚠️ **[Instabilidade de Mana]** Uma turbulência energética temporária sacudiu as linhas de ley de Astral-Solaria. O Mestre da Realidade não pôde registrar sua ação neste segundo.
+
+*As lentes solares de Al-Kharid emitem um bipe agudo de reinicialização. Por favor, tente enviar seu comando novamente.*`,
+          gameState: {
+            ...(gameState || {}),
+            suggestedActions: fallbackActions
+          }
+        };
+        res.json(fallbackResponse);
+      }
     } catch (error) {
-      console.error("Erro na API da IA:", error);
-      res.status(500).json({ error: "Ocorreu um erro ao processar sua solicitação no Mestre do Jogo." });
+      console.error("Erro fatal no endpoint de chat:", error);
+      res.status(500).json({ error: "Erro fatal no servidor de simulação." });
     }
   });
 

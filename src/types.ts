@@ -81,6 +81,7 @@ export interface GameState {
   butterflyEffects: string[]; // Registro de grandes decisões que mudaram o mundo
   rotLevel: number; // Nível de podridão (0-100)
   timeOfDay: 'Manhã' | 'Tarde' | 'Noite' | 'Madrugada';
+  suggestedActions?: string[]; // Ações contextuais dinâmicas oferecidas pelo Mestre
 }
 
 export interface Message {
